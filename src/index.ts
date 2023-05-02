@@ -63,14 +63,6 @@ http.interceptors.response.use(
   }
 );
 
-application.onUiMessage = async (message: UiMessageType) => {
-  switch (message.type) {
-    case "endvideo":
-      application.endVideo();
-      break;
-  }
-};
-
 const searchChannels = async (
   request: SearchRequest
 ): Promise<SearchChannelResult> => {
