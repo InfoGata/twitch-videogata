@@ -37,19 +37,11 @@ const playVideo = (videoId: string) => {
 };
 
 const playLiveStream = (channelApiId: string) => {
-  const onMessage = (event: MessageEvent<MessageType>) => {
-    switch (event.data.type) {
-      case "channelName":
-        const options: TwitchPlayerOptions = {
-          ...playerOptions,
-          channel: event.data.channelName,
-        };
-        const player: TwitchPlayer = new Twitch.Player("player", options);
-        break;
-    }
+  const options: TwitchPlayerOptions = {
+    ...playerOptions,
+    channel: channelApiId,
   };
-  window.addEventListener("message", onMessage);
-  sendMessage({ type: "getChannelName", channelApiId: channelApiId });
+  const player: TwitchPlayer = new Twitch.Player("player", options);
 };
 
 const sendMessage = (message: UiMessageType) => {

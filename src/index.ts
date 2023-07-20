@@ -5,10 +5,20 @@ import {
   TwitchChannelInformation,
   TwitchResponse,
   TwitchStream,
+  TwitchUserInformation,
   TwitchVideo,
   UiMessageType,
 } from "./types";
 import { parse, toSeconds } from "iso8601-duration";
+
+const getIdFromChannelName = async (channelName: string): Promise<string> => {
+  const url = "https://api.twitch.tv/helix/users";
+  const urlWithQuery = `${url}?login=${channelName}`;
+  const response = await http.get<TwitchResponse<TwitchUserInformation>>(
+    urlWithQuery
+  );
+  return response.data.data[0].id;
+};
 
 export const TOKEN_SERVER =
   "https://cloudflare-worker-token-service.audio-pwa.workers.dev/token";
@@ -71,7 +81,7 @@ const searchChannels = async (
   const response = await http.get<TwitchResponse<TwitchChannel>>(urlWithQuery);
   const channels: Channel[] = response.data.data.map(
     (d): Channel => ({
-      apiId: d.id,
+      apiId: d.broadcaster_login,
       name: d.display_name,
       images: [{ url: d.thumbnail_url }],
       isLive: d.is_live,
@@ -96,7 +106,7 @@ const twitchVideoToVideo = (twitchVideo: TwitchVideo): Video => {
         width: 250,
       },
     ],
-    channelApiId: twitchVideo.user_id,
+    channelApiId: twitchVideo.user_login,
     channelName: twitchVideo.user_name,
   };
 };
@@ -106,12 +116,13 @@ const getChannelVideos = async (
 ): Promise<ChannelVideosResult> => {
   const url = "https://api.twitch.tv/helix/videos";
   const type = "archive";
-  const urlWithQuery = `${url}?user_id=${request.apiId}&type=${type}`;
+  const userId = await getIdFromChannelName(request.apiId || "");
+  const urlWithQuery = `${url}?user_id=${userId}&type=${type}`;
   const response = await http.get<TwitchResponse<TwitchVideo>>(urlWithQuery);
   const videos: Video[] = response.data.data.map(twitchVideoToVideo);
 
   const streamUrl = "https://api.twitch.tv/helix/streams";
-  const streamUrlWithQuery = `${streamUrl}?user_id=${request.apiId}&live=true`;
+  const streamUrlWithQuery = `${streamUrl}?user_id=${userId}&live=true`;
   const streamResponse = await http.get<TwitchResponse<TwitchStream>>(
     streamUrlWithQuery
   );
@@ -134,14 +145,15 @@ const getVideo = async (request: GetVideoRequest): Promise<Video> => {
 
 const getLiveVideo = async (request: GetLiveVideoRequest) => {
   const url = "https://api.twitch.tv/helix/streams";
-  const urlWithQuery = `${url}?user_id=${request.channelApiId}&live=true`;
+  const userId = await getIdFromChannelName(request.channelApiId);
+  const urlWithQuery = `${url}?user_id=${userId}&live=true`;
   const response = await http.get<TwitchResponse<TwitchStream>>(urlWithQuery);
   if (response.data.data.length > 0) {
     const videos = response.data.data.map(
       (d): Video => ({
         title: d.title,
         channelName: d.user_name,
-        channelApiId: d.user_id,
+        channelApiId: d.user_login,
       })
     );
     return videos[0];
@@ -160,25 +172,8 @@ application.onSearchChannels = searchChannels;
 application.onGetVideo = getVideo;
 application.onGetLiveVideo = getLiveVideo;
 
-function sendMessage(message: MessageType) {
-  application.postUiMessage(message);
-}
-
-const getChannelNameFromId = async (channelApiId: string): Promise<string> => {
-  const url = "https://api.twitch.tv/helix/channels";
-  const urlWithQuery = `${url}?broadcaster_id=${channelApiId}`;
-  const response = await http.get<TwitchResponse<TwitchChannelInformation>>(
-    urlWithQuery
-  );
-  return response.data.data[0].broadcaster_login;
-};
-
 application.onUiMessage = async (message: UiMessageType) => {
   switch (message.type) {
-    case "getChannelName":
-      const channelName = await getChannelNameFromId(message.channelApiId);
-      sendMessage({ type: "channelName", channelName: channelName });
-      break;
     case "endvideo":
       application.endVideo();
       break;

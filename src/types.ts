@@ -1,13 +1,8 @@
-type UiGetUrlType = {
-  type: "getChannelName";
-  channelApiId: string;
-};
-
 type UiEndVideoType = {
   type: "endvideo";
 };
 
-export type UiMessageType = UiGetUrlType | UiEndVideoType;
+export type UiMessageType = UiEndVideoType;
 
 type ChannelNameType = {
   type: "channelName";
@@ -20,6 +15,7 @@ export interface TwitchVideo {
   id: string;
   user_id: string;
   user_name: string;
+  user_login: string;
   title: string;
   description: string;
   view_count: number;
@@ -35,6 +31,7 @@ export interface TwitchStream {
   id: string;
   user_id: string;
   user_name: string;
+  user_login: string;
   title: string;
   thumbnail_url: string;
   started_at: string;
@@ -42,6 +39,7 @@ export interface TwitchStream {
 
 export interface TwitchChannel {
   id: string;
+  broadcaster_login: string;
   thumbnail_url: string;
   is_live: boolean;
   display_name: string;
@@ -51,4 +49,10 @@ export interface TwitchChannelInformation {
   broadcaster_id: string;
   broadcaster_login: string;
   broadcaster_name: string;
+}
+
+export interface TwitchUserInformation {
+  id: string;
+  login: string;
+  display_name: string;
 }
