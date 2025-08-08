@@ -1,6 +1,7 @@
-import axios from "axios";
+import ky from "ky";
 import {
   MessageType,
+  TokenResponse,
   TwitchChannel,
   TwitchChannelInformation,
   TwitchResponse,
@@ -16,70 +17,66 @@ const getIdFromChannelName = async (channelName: string): Promise<string> => {
   const urlWithQuery = `${url}?login=${channelName}`;
   const response = await http.get<TwitchResponse<TwitchUserInformation>>(
     urlWithQuery
-  );
-  return response.data.data[0].id;
+  ).json();
+  return response.data[0].id;
 };
 
 export const TOKEN_SERVER =
   "https://cloudflare-worker-token-service.audio-pwa.workers.dev/token";
 const CLIENT_ID = "19tpyf3jn7o7c05mk774ira19x8bbp";
-const http = axios.create();
 
 export const setToken = (accessToken: string) => {
   localStorage.setItem("access_token", accessToken);
 };
+
+const http = ky.create({
+  headers: {
+    "Client-Id": CLIENT_ID,
+  },
+  hooks: {
+    beforeRequest: [
+      (request) => {
+        const token = localStorage.getItem("access_token");
+        if (token) {
+          request.headers.set("Authorization", "Bearer " + token);
+        }
+      },
+    ],
+    afterResponse: [
+      async (request, options, response) => {
+        if (response.status === 401) {
+          const accessToken = await refreshToken();
+          request.headers.set("Authorization", "Bearer " + accessToken);
+          return http(request);
+        }
+      },
+    ],
+  },
+});
 
 export const refreshToken = async () => {
   const params = new URLSearchParams();
   params.append("client_id", CLIENT_ID);
   params.append("grant_type", "client_credentials");
 
-  const result = await http.post(TOKEN_SERVER, params, {
+  const result = await http.post<TokenResponse>(TOKEN_SERVER, {
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
-  });
-  if (result.data.access_token) {
-    return result.data.access_token as string;
+    body: params,
+  }).json();
+  if (result.access_token) {
+    return result.access_token;
   }
 };
-
-http.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers["Authorization"] = "Bearer " + token;
-    }
-    return config;
-  },
-  (error) => {
-    Promise.reject(error);
-  }
-);
-
-http.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const accessToken = await refreshToken();
-      http.defaults.headers.common["Client-Id"] = CLIENT_ID;
-      http.defaults.headers.common["Authorization"] = "Bearer " + accessToken;
-      return http(originalRequest);
-    }
-  }
-);
 
 const searchChannels = async (
   request: SearchRequest
 ): Promise<SearchChannelResult> => {
   const url = "https://api.twitch.tv/helix/search/channels";
   const urlWithQuery = `${url}?query=${request.query}`;
-  const response = await http.get<TwitchResponse<TwitchChannel>>(urlWithQuery);
-  const channels: Channel[] = response.data.data.map(
+  const response = await http.get<TwitchResponse<TwitchChannel>>(urlWithQuery).json();
+  const channels: Channel[] = response.data.map(
     (d): Channel => ({
       apiId: d.broadcaster_login,
       name: d.display_name,
@@ -118,15 +115,15 @@ const getChannelVideos = async (
   const type = "archive";
   const userId = await getIdFromChannelName(request.apiId || "");
   const urlWithQuery = `${url}?user_id=${userId}&type=${type}`;
-  const response = await http.get<TwitchResponse<TwitchVideo>>(urlWithQuery);
-  const videos: Video[] = response.data.data.map(twitchVideoToVideo);
+  const response = await http.get<TwitchResponse<TwitchVideo>>(urlWithQuery).json();
+  const videos: Video[] = response.data.map(twitchVideoToVideo);
 
   const streamUrl = "https://api.twitch.tv/helix/streams";
   const streamUrlWithQuery = `${streamUrl}?user_id=${userId}&live=true`;
   const streamResponse = await http.get<TwitchResponse<TwitchStream>>(
     streamUrlWithQuery
-  );
-  const isLive = streamResponse.data.data.length > 0;
+  ).json();
+  const isLive = streamResponse.data.length > 0;
 
   return {
     items: videos,
@@ -137,8 +134,8 @@ const getChannelVideos = async (
 const getVideo = async (request: GetVideoRequest): Promise<Video> => {
   const url = "https://api.twitch.tv/helix/videos";
   const urlWithQuery = `${url}?id=${request.apiId}`;
-  const response = await http.get<TwitchResponse<TwitchVideo>>(urlWithQuery);
-  const videos: Video[] = response.data.data.map(twitchVideoToVideo);
+  const response = await http.get<TwitchResponse<TwitchVideo>>(urlWithQuery).json();
+  const videos: Video[] = response.data.map(twitchVideoToVideo);
 
   return videos[0];
 };
@@ -147,9 +144,9 @@ const getLiveVideo = async (request: GetLiveVideoRequest) => {
   const url = "https://api.twitch.tv/helix/streams";
   const userId = await getIdFromChannelName(request.channelApiId);
   const urlWithQuery = `${url}?user_id=${userId}&live=true`;
-  const response = await http.get<TwitchResponse<TwitchStream>>(urlWithQuery);
-  if (response.data.data.length > 0) {
-    const videos = response.data.data.map(
+  const response = await http.get<TwitchResponse<TwitchStream>>(urlWithQuery).json();
+  if (response.data.length > 0) {
+    const videos = response.data.map(
       (d): Video => ({
         title: d.title,
         channelName: d.user_name,

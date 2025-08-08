@@ -2,6 +2,13 @@ type UiEndVideoType = {
   type: "endvideo";
 };
 
+export type TokenResponse = {
+  access_token: string;
+  expires_in: number;
+  scope: string[];
+  token_type: string;
+};
+
 export type UiMessageType = UiEndVideoType;
 
 type ChannelNameType = {
