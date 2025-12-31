@@ -1,7 +1,7 @@
 {
   "id": "b87fe67b-1b62-4c44-a5a4-e7cc6cd30c84",
   "name": "Plugin for Twitch",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "script": "dist/index.js",
   "player": "dist/player.html",
   "description": "Plugin for playing videos from twitch.tv"
