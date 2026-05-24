@@ -4,5 +4,9 @@
   "version": "1.1.0",
   "script": "dist/index.js",
   "player": "dist/player.html",
-  "description": "Plugin for playing videos from twitch.tv"
+  "description": "Plugin for playing videos from twitch.tv",
+  "siteMatch": [
+    "https://www.twitch.tv/*",
+    "https://m.twitch.tv/*"
+  ]
 }
