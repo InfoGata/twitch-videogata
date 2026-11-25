@@ -22,14 +22,37 @@ declare global {
   };
 }
 
-const playerOptions: TwitchPlayerOptions = {
-  height: "100%",
-  width: "100%",
-  parent: ["www.videogata.com", "localhost", "preview.videogata.com"],
+// Twitch refuses to play unless every page the embed sits in is named in
+// `parent`. This player runs in a frame on the plugin's own subdomain
+// (`<plugin id>.videogata.com`, or `<plugin id>.localhost` in dev), inside the
+// app, so both hostnames are needed. Neither is fixed, so they are read here
+// instead of being listed by hand.
+export const getParentHosts = (): string[] => {
+  const hosts = new Set<string>([window.location.hostname]);
+  const ancestors = window.location.ancestorOrigins;
+  if (ancestors) {
+    for (let i = 0; i < ancestors.length; i++) {
+      hosts.add(new URL(ancestors[i]).hostname);
+    }
+  }
+  // Firefox has no ancestorOrigins; the referrer still carries the app's origin.
+  if (document.referrer) {
+    hosts.add(new URL(document.referrer).hostname);
+  }
+  hosts.delete("");
+  // In case neither of the above names the app's own page.
+  hosts.add("www.videogata.com");
+  return [...hosts];
 };
 
+const playerOptions = (): TwitchPlayerOptions => ({
+  height: "100%",
+  width: "100%",
+  parent: getParentHosts(),
+});
+
 const playVideo = (videoId: string) => {
-  const options: TwitchPlayerOptions = { ...playerOptions, video: videoId };
+  const options: TwitchPlayerOptions = { ...playerOptions(), video: videoId };
   const player: TwitchPlayer = new Twitch.Player("player", options);
   player.addEventListener(Twitch.Player.ENDED, () => {
     sendMessage({ type: "endvideo" });
@@ -38,7 +61,7 @@ const playVideo = (videoId: string) => {
 
 const playLiveStream = (channelApiId: string) => {
   const options: TwitchPlayerOptions = {
-    ...playerOptions,
+    ...playerOptions(),
     channel: channelApiId,
   };
   const player: TwitchPlayer = new Twitch.Player("player", options);
