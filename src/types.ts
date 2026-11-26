@@ -5,7 +5,9 @@ type UiEndVideoType = {
 export type TokenResponse = {
   access_token: string;
   expires_in: number;
-  scope: string[];
+  /** Only on user tokens: app tokens are minted again instead. */
+  refresh_token?: string;
+  scope?: string[];
   token_type: string;
 };
 
