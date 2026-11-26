@@ -157,6 +157,66 @@ const getLiveVideo = async (request: GetLiveVideoRequest) => {
   }
 };
 
+// Enough to fill the home grid at every column count without a second page.
+const TOP_STREAM_COUNT = 24;
+
+/**
+ * Twitch has no "trending videos": what its front page leads with is the
+ * streams live right now, most watched first.
+ */
+const getTopItems = async (): Promise<SearchAllResult> => {
+  const url = "https://api.twitch.tv/helix/streams";
+  const response = await http
+    .get<TwitchResponse<TwitchStream>>(`${url}?first=${TOP_STREAM_COUNT}`)
+    .json();
+  const streams = response.data;
+
+  // Avatars are one extra request for the whole page; the cards fall back to
+  // the channel's initial, so the streams are still worth showing without it.
+  const avatars = new Map<string, string>();
+  if (streams.length > 0) {
+    try {
+      const ids = streams.map((s) => `id=${s.user_id}`).join("&");
+      const users = await http
+        .get<TwitchResponse<TwitchUserInformation>>(
+          `https://api.twitch.tv/helix/users?${ids}`
+        )
+        .json();
+      for (const user of users.data) {
+        avatars.set(user.id, user.profile_image_url);
+      }
+    } catch {
+      // See above.
+    }
+  }
+
+  const items = streams.map((stream): Video => {
+    const avatar = avatars.get(stream.user_id);
+    return {
+      title: stream.title,
+      apiId: stream.id,
+      channelApiId: stream.user_login,
+      channelName: stream.user_name,
+      channelImages: avatar ? [{ url: avatar }] : undefined,
+      views: stream.viewer_count,
+      isLive: true,
+      // Stream previews use {width}, unlike the %{width} of video thumbnails.
+      images: [
+        {
+          url: stream.thumbnail_url
+            .replace("{width}", "640")
+            .replace("{height}", "360"),
+          width: 640,
+          height: 360,
+        },
+      ],
+      originalUrl: `https://www.twitch.tv/${stream.user_login}`,
+    };
+  });
+
+  return { videos: { items } };
+};
+
 const searchAll = async (request: SearchRequest): Promise<SearchAllResult> => {
   const channelsPromise = searchChannels(request);
   const [channels] = await Promise.all([channelsPromise]);
@@ -164,6 +224,7 @@ const searchAll = async (request: SearchRequest): Promise<SearchAllResult> => {
 };
 
 application.onSearchAll = searchAll;
+application.onGetTopItems = getTopItems;
 application.onGetChannelVideos = getChannelVideos;
 application.onSearchChannels = searchChannels;
 application.onGetVideo = getVideo;

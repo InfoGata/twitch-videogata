@@ -42,6 +42,8 @@ export interface TwitchStream {
   title: string;
   thumbnail_url: string;
   started_at: string;
+  viewer_count: number;
+  game_name: string;
 }
 
 export interface TwitchChannel {
@@ -62,4 +64,5 @@ export interface TwitchUserInformation {
   id: string;
   login: string;
   display_name: string;
+  profile_image_url: string;
 }
